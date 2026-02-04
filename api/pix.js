@@ -1,11 +1,18 @@
-import axios from "axios";
-import fs from "fs";
 import https from "https";
+import axios from "axios";
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    const cert = fs.readFileSync("./certificado.pem");
-    const key = fs.readFileSync("./certificado-key.pem");
+    const cert = process.env.CERT_PEM;
+    const key = process.env.CERT_KEY;
+
+    if (!cert || !key) {
+      return res.status(500).json({ error: "Certificados não encontrados" });
+    }
 
     const agent = new https.Agent({
       cert,
@@ -13,21 +20,14 @@ export default async function handler(req, res) {
     });
 
     const response = await axios.post(
-      "https://baas-api.c6bank.info/v2/pix/charges",
+      "https://api.c6bank.com.br/pix/v1/qrcodes",
       req.body,
-      {
-        httpsAgent: agent,
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
+      { httpsAgent: agent }
     );
 
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: error.message
-    });
+    return res.status(200).json(response.data);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Erro ao gerar Pix" });
   }
 }
