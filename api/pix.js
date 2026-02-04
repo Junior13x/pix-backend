@@ -2,9 +2,14 @@ import https from "https";
 import axios from "axios";
 
 export default async function handler(req, res) {
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "PIX API ONLINE" });
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
 
   try {
     const cert = process.env.CERT_PEM;
