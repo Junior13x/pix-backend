@@ -1,9 +1,6 @@
 import axios from "axios";
 import https from "https";
 
-// Variáveis de ambiente: C6_CLIENT_ID, C6_CLIENT_SECRET, C6_PIX_KEY
-// Certificado MTLS: certificado.pem e certificado-key.pem (ou paths em C6_CERT_PATH, C6_CERT_KEY_PATH)
-
 const AUTH_URL = "https://baas-api.c6bank.info/v1/auth";
 const PIX_API_URL = "https://baas-api.c6bank.info/v2/pix";
 
@@ -16,11 +13,19 @@ function gerarTxId() {
   return txid;
 }
 
-function criarHttpsAgent(certPath, keyPath) {
-  const fs = require("fs");
-  const path = require("path");
-  const cert = fs.readFileSync(path.resolve(process.cwd(), certPath));
-  const key = fs.readFileSync(path.resolve(process.cwd(), keyPath));
+function criarHttpsAgent() {
+  const certPem = process.env.C6_CERT_PEM;
+  const keyPem = process.env.C6_CERT_KEY_PEM;
+  if (!certPem || !keyPem) {
+    throw new Error("C6_CERT_PEM e C6_CERT_KEY_PEM devem estar definidas nas variáveis de ambiente");
+  }
+  // Suporta base64 ou texto PEM (com \n no lugar das quebras de linha)
+  const cert = certPem.includes("-----BEGIN")
+    ? Buffer.from(certPem.replace(/\\n/g, "\n"), "utf8")
+    : Buffer.from(certPem, "base64");
+  const key = keyPem.includes("-----BEGIN")
+    ? Buffer.from(keyPem.replace(/\\n/g, "\n"), "utf8")
+    : Buffer.from(keyPem, "base64");
   return new https.Agent({ cert, key, rejectUnauthorized: true });
 }
 
@@ -39,8 +44,6 @@ export default async function handler(req, res) {
     const C6_CLIENT_ID = process.env.C6_CLIENT_ID;
     const C6_CLIENT_SECRET = process.env.C6_CLIENT_SECRET;
     const C6_PIX_KEY = process.env.C6_PIX_KEY;
-    const certPath = process.env.C6_CERT_PATH || "./certificado.pem";
-    const keyPath = process.env.C6_CERT_KEY_PATH || "./certificado-key.pem";
 
     if (!C6_CLIENT_ID || !C6_CLIENT_SECRET || !C6_PIX_KEY) {
       return res.status(500).json({
@@ -48,7 +51,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const agent = criarHttpsAgent(certPath, keyPath);
+    const agent = criarHttpsAgent();
     const axiosInstance = axios.create({ httpsAgent: agent, timeout: 30000 });
 
     // 1) OAuth2
@@ -105,8 +108,12 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("[pix] Erro:", err.response?.data || err.message);
-    const status = err.response?.status || 500;
-    const message = err.response?.data?.detail || err.response?.data?.message || err.message || "Erro ao gerar PIX";
+    const status = err.response?.status ?? 500;
+    const message =
+      err.response?.data?.detail ||
+      err.response?.data?.message ||
+      err.message ||
+      "Erro ao gerar PIX";
     return res.status(status).json({ error: String(message) });
   }
 }
