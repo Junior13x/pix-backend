@@ -19,7 +19,6 @@ function criarHttpsAgent() {
   if (!certPem || !keyPem) {
     throw new Error("C6_CERT_PEM e C6_CERT_KEY_PEM devem estar definidas nas variáveis de ambiente");
   }
-  // Suporta base64 ou texto PEM (com \n no lugar das quebras de linha)
   const cert = certPem.includes("-----BEGIN")
     ? Buffer.from(certPem.replace(/\\n/g, "\n"), "utf8")
     : Buffer.from(certPem, "base64");
@@ -54,7 +53,6 @@ export default async function handler(req, res) {
     const agent = criarHttpsAgent();
     const axiosInstance = axios.create({ httpsAgent: agent, timeout: 30000 });
 
-    // 1) OAuth2
     const authRes = await axiosInstance.post(
       AUTH_URL,
       new URLSearchParams({
@@ -69,7 +67,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Falha na autenticação C6" });
     }
 
-    // 2) Criar cobrança PIX
     const txid = gerarTxId();
     const valor = Number(amount).toFixed(2);
     const payload = {
