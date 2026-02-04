@@ -89,7 +89,6 @@ export default async function handler(req, res) {
 
     const copiaCola =
       cobRes.data?.pixCopiaECola ||
-      cobRes.data?.pixCopiaECola ||
       cobRes.data?.copiaCola ||
       cobRes.data?.copia_cola ||
       "";
