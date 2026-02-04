@@ -29,6 +29,50 @@ function criarHttpsAgent() {
 }
 
 export default async function handler(req, res) {
+  if (req.method === "GET") {
+    const txid = req.query?.txid;
+    if (!txid) {
+      return res.status(400).json({ error: "Parâmetro txid é obrigatório" });
+    }
+    try {
+      const C6_CLIENT_ID = process.env.C6_CLIENT_ID;
+      const C6_CLIENT_SECRET = process.env.C6_CLIENT_SECRET;
+      if (!C6_CLIENT_ID || !C6_CLIENT_SECRET) {
+        return res.status(500).json({ error: "Credenciais C6 não configuradas" });
+      }
+      const agent = criarHttpsAgent();
+      const axiosInstance = axios.create({ httpsAgent: agent, timeout: 30000 });
+      const authRes = await axiosInstance.post(
+        AUTH_URL,
+        new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: C6_CLIENT_ID,
+          client_secret: C6_CLIENT_SECRET,
+        }).toString(),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+      const token = authRes.data?.access_token;
+      if (!token) {
+        return res.status(500).json({ error: "Falha na autenticação C6" });
+      }
+      const cobRes = await axiosInstance.get(`${PIX_API_URL}/cob/${txid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const status = cobRes.data?.status || "DESCONHECIDO";
+      const pago = status === "CONCLUIDA" || status === "RECEBIDO";
+      return res.status(200).json({ success: true, status, pago });
+    } catch (err) {
+      console.error("[pix] GET status Erro:", err.response?.data || err.message);
+      const statusCode = err.response?.status ?? 500;
+      const message =
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message ||
+        "Erro ao consultar status";
+      return res.status(statusCode).json({ error: String(message) });
+    }
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
